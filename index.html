@@ -598,10 +598,18 @@ function drawDead() {
   ctx.fillText(`FINAL SCORE: ${state.score.toLocaleString()}`,W/2,H/2+15+HEADER_H);
   ctx.fillStyle="#ffdd00"; ctx.font="14px 'Courier New',monospace";
   ctx.fillText(`Receipt Length: ${state.length}`,W/2,H/2+42+HEADER_H);
+  // Restart button
   ctx.fillStyle="#00ff88";
   ctx.beginPath(); ctx.roundRect(W/2-80,H/2+68+HEADER_H,160,40,6); ctx.fill();
   ctx.fillStyle="#0a0a0a"; ctx.font="bold 16px 'Courier New',monospace";
   ctx.fillText("RESTART",W/2,H/2+94+HEADER_H);
+
+  // CTA button
+  ctx.fillStyle="#1a2540";
+  ctx.strokeStyle="#4488ff"; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(W/2-160,H/2+118+HEADER_H,320,40,6); ctx.fill(); ctx.stroke();
+  ctx.fillStyle="#4488ff"; ctx.font="bold 13px 'Courier New',monospace";
+  ctx.fillText("💬 Talk to the Price Bailey team →",W/2,H/2+144+HEADER_H);
 }
 
 // ─────────────────────────────────────────────
@@ -681,8 +689,14 @@ canvas.addEventListener("click", e => {
     const scaleX=W/rect.width, scaleY=(H+HEADER_H)/rect.height;
     const cx=(e.clientX-rect.left)*scaleX;
     const cy=(e.clientY-rect.top)*scaleY;
+    // Restart button
     const bx=W/2-80, by=H/2+68+HEADER_H;
-    if(cx>=bx&&cx<=bx+160&&cy>=by&&cy<=by+40) startGame();
+    if(cx>=bx&&cx<=bx+160&&cy>=by&&cy<=by+40){ startGame(); return; }
+    // CTA button
+    const ctax=W/2-160, ctay=H/2+118+HEADER_H;
+    if(cx>=ctax&&cx<=ctax+320&&cy>=ctay&&cy<=ctay+40){
+      window.open("https://www.pricebailey.co.uk/enquiry-form/","_blank","noopener,noreferrer");
+    }
   }
 });
 
