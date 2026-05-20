@@ -634,59 +634,128 @@ function render() {
   // Touch control hint overlay (tablets)
   if(state.phase === "playing") drawTouchHints();
 
+  // Tap ripples (touch feedback)
+  drawTapRipples();
+
   state.frameCount++;
   requestAnimationFrame(render);
 }
 
+function drawTapRipples() {
+  tapRipples = tapRipples.filter(r => r.life > 0);
+  tapRipples.forEach(r => {
+    const t = 1 - r.life / r.maxLife;
+    const radius = 10 + t * 60;
+    const alpha = (1 - t) * 0.6;
+    ctx.save();
+    ctx.strokeStyle = `rgba(0,255,180,${alpha})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    // Inner solid dot
+    ctx.fillStyle = `rgba(180,255,220,${alpha * 1.2})`;
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, 4 + t * 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    r.life--;
+  });
+}
+
 function drawTouchHints() {
   const d = state.dir;
-  const alpha = 0.18;
-  const HALF = W / 2;
-  const TOP  = HEADER_H;
+  const TOP = HEADER_H;
+  const pulse = 0.5 + 0.5 * Math.sin(state.frameCount * 0.05);
 
   ctx.save();
 
-  if(d.x !== 0) {
-    // Moving horizontally — show TOP / BOTTOM tap zones
-    // Top zone
-    ctx.fillStyle = `rgba(0,220,255,${alpha})`;
-    ctx.beginPath();
-    ctx.roundRect(HALF - 120, TOP + 8, 240, 44, 8);
-    ctx.fill();
-    ctx.fillStyle = `rgba(0,220,255,0.7)`;
-    ctx.font = "bold 13px 'Courier New',monospace";
-    ctx.textAlign = "center";
-    ctx.fillText("▲  TAP TOP TO TURN UP", HALF, TOP + 36);
+  // Split the playfield into two tap halves with a divider line
+  const horizontal = d.x !== 0; // moving left or right → split into TOP/BOTTOM halves
+  const midX = W / 2;
+  const midY = TOP + H / 2;
 
-    // Bottom zone
-    ctx.fillStyle = `rgba(0,220,255,${alpha})`;
-    ctx.beginPath();
-    ctx.roundRect(HALF - 120, TOP + H - 52, 240, 44, 8);
-    ctx.fill();
-    ctx.fillStyle = `rgba(0,220,255,0.7)`;
-    ctx.font = "bold 13px 'Courier New',monospace";
-    ctx.fillText("▼  TAP BOTTOM TO TURN DOWN", HALF, TOP + H - 24);
-
+  // Divider line (animated dashes)
+  ctx.strokeStyle = `rgba(0,220,255,${0.25 + 0.15 * pulse})`;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 8]);
+  ctx.lineDashOffset = -state.frameCount * 0.3;
+  ctx.beginPath();
+  if (horizontal) {
+    ctx.moveTo(0, midY);
+    ctx.lineTo(W, midY);
   } else {
-    // Moving vertically — show LEFT / RIGHT tap zones
-    // Left zone
-    ctx.fillStyle = `rgba(0,220,255,${alpha})`;
-    ctx.beginPath();
-    ctx.roundRect(8, TOP + H/2 - 22, 160, 44, 8);
-    ctx.fill();
-    ctx.fillStyle = `rgba(0,220,255,0.7)`;
-    ctx.font = "bold 13px 'Courier New',monospace";
-    ctx.textAlign = "center";
-    ctx.fillText("◀  TAP LEFT", 88, TOP + H/2 + 6);
+    ctx.moveTo(midX, TOP);
+    ctx.lineTo(midX, TOP + H);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
 
-    // Right zone
-    ctx.fillStyle = `rgba(0,220,255,${alpha})`;
+  // Determine the two resulting directions for each half
+  let zoneA, zoneB;
+  if (d.x === 1) {
+    // moving right
+    zoneA = { rect: [0, TOP, W, H/2],            arrow: "↑", label: "TAP TOP" };
+    zoneB = { rect: [0, TOP + H/2, W, H/2],      arrow: "↓", label: "TAP BOTTOM" };
+  } else if (d.x === -1) {
+    // moving left
+    zoneA = { rect: [0, TOP, W, H/2],            arrow: "↑", label: "TAP TOP" };
+    zoneB = { rect: [0, TOP + H/2, W, H/2],      arrow: "↓", label: "TAP BOTTOM" };
+  } else if (d.y === -1) {
+    // moving up
+    zoneA = { rect: [0, TOP, W/2, H],            arrow: "←", label: "TAP LEFT" };
+    zoneB = { rect: [W/2, TOP, W/2, H],          arrow: "→", label: "TAP RIGHT" };
+  } else {
+    // moving down — mirrored (tap left → snake turns RIGHT relative to world)
+    zoneA = { rect: [0, TOP, W/2, H],            arrow: "→", label: "TAP LEFT" };
+    zoneB = { rect: [W/2, TOP, W/2, H],          arrow: "←", label: "TAP RIGHT" };
+  }
+
+  // Draw big translucent arrows in each zone — anchored at the OUTER edge
+  // so they don't crowd the centre where gameplay happens
+  const drawArrow = (zone, anchor) => {
+    const [zx, zy, zw, zh] = zone.rect;
+    let ax, ay;
+    if (anchor === "top")    { ax = zx + zw/2; ay = zy + 50; }
+    if (anchor === "bottom") { ax = zx + zw/2; ay = zy + zh - 50; }
+    if (anchor === "left")   { ax = zx + 60;   ay = zy + zh/2; }
+    if (anchor === "right")  { ax = zx + zw - 60; ay = zy + zh/2; }
+
+    // Glow background circle
+    ctx.fillStyle = `rgba(0,220,255,${0.06 + 0.04 * pulse})`;
     ctx.beginPath();
-    ctx.roundRect(W - 168, TOP + H/2 - 22, 160, 44, 8);
+    ctx.arc(ax, ay, 42, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = `rgba(0,220,255,0.7)`;
-    ctx.font = "bold 13px 'Courier New',monospace";
-    ctx.fillText("TAP RIGHT  ▶", W - 88, TOP + H/2 + 6);
+
+    // Arrow ring
+    ctx.strokeStyle = `rgba(0,220,255,${0.4 + 0.2 * pulse})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(ax, ay, 34, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Arrow glyph
+    ctx.fillStyle = `rgba(180,240,255,${0.85 + 0.15 * pulse})`;
+    ctx.shadowColor = "rgba(0,220,255,0.8)";
+    ctx.shadowBlur = 12;
+    ctx.font = "bold 42px Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(zone.arrow, ax, ay);
+    ctx.shadowBlur = 0;
+
+    // Label under the circle
+    ctx.fillStyle = `rgba(0,220,255,0.75)`;
+    ctx.font = "bold 10px 'Courier New', monospace";
+    ctx.fillText(zone.label, ax, ay + 56);
+  };
+
+  if (horizontal) {
+    drawArrow(zoneA, "top");
+    drawArrow(zoneB, "bottom");
+  } else {
+    drawArrow(zoneA, "left");
+    drawArrow(zoneB, "right");
   }
 
   ctx.restore();
@@ -717,6 +786,8 @@ canvas.addEventListener("touchstart", e => {
   if(state.phase==="start"||state.phase==="dead") startGame();
 }, { passive: false });
 
+let tapRipples = [];
+
 canvas.addEventListener("touchend", e => {
   e.preventDefault();
   if(!state.touchStart||state.phase!=="playing") return;
@@ -726,7 +797,6 @@ canvas.addEventListener("touchend", e => {
   const SWIPE_THRESHOLD = 18;
 
   if(ax > SWIPE_THRESHOLD || ay > SWIPE_THRESHOLD){
-    // Swipe gesture — use direction of swipe
     if(ax>ay){
       if(dx>0&&state.dir.x!==-1) state.nextDir={x:1,y:0};
       else if(dx<0&&state.dir.x!==1) state.nextDir={x:-1,y:0};
@@ -735,28 +805,26 @@ canvas.addEventListener("touchend", e => {
       else if(dy<0&&state.dir.y!==1) state.nextDir={x:0,y:-1};
     }
   } else {
-    // Tap — turn left or right relative to current travel direction
-    // based on which half of the screen was tapped
     const rect = canvas.getBoundingClientRect();
-    const tapX = e.changedTouches[0].clientX - rect.left;
-    const tapY = e.changedTouches[0].clientY - rect.top;
-    const halfW = rect.width / 2;
-    const halfH = rect.height / 2;
-    const tapRight = tapX > halfW;  // right half of screen
-    const tapBottom = tapY > halfH; // bottom half of screen
+    const scaleX = W/rect.width, scaleY=(H+HEADER_H)/rect.height;
+    const tapX = (e.changedTouches[0].clientX - rect.left) * scaleX;
+    const tapY = (e.changedTouches[0].clientY - rect.top) * scaleY;
+    const halfW = W / 2;
+    const halfH = (H + HEADER_H) / 2;
+    const tapRight = tapX > halfW;
+    const tapBottom = tapY > halfH;
+
+    // Spawn ripple at tap location for visual feedback
+    tapRipples.push({ x: tapX, y: tapY, life: 24, maxLife: 24 });
 
     const d = state.dir;
     if(d.x === 1){
-      // Moving right: tap top = turn up, tap bottom = turn down
       state.nextDir = tapBottom ? {x:0,y:1} : {x:0,y:-1};
     } else if(d.x === -1){
-      // Moving left: tap top = turn up, tap bottom = turn down (mirrored)
       state.nextDir = tapBottom ? {x:0,y:1} : {x:0,y:-1};
     } else if(d.y === -1){
-      // Moving up: tap left = turn left, tap right = turn right
       state.nextDir = tapRight ? {x:1,y:0} : {x:-1,y:0};
     } else if(d.y === 1){
-      // Moving down: tap left = turn right (from snake's POV), tap right = turn left
       state.nextDir = tapRight ? {x:-1,y:0} : {x:1,y:0};
     }
   }
